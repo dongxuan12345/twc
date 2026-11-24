@@ -1,0 +1,12 @@
+# 神经网络文献追踪看板 —— 运行依赖
+# 安装：pip install -r requirements.txt
+#
+# 说明：这里使用「下限 + 上限」约束而不是硬钉版本号，
+# 是为了避免在较新的 Python（3.12/3.13）上因缺少预编译 wheel 而安装失败。
+# 若需要严格复现环境，可执行：pip freeze > requirements.lock.txt
+
+streamlit>=1.31,<2.0
+requests>=2.31,<3.0
+python-dotenv>=1.0,<2.0
+openai>=1.30,<2.0
+pandas>=2.0,<3.0

@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="system">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神经网络文献追踪看板</title>
+<style>
+/* ==================== 设计令牌 ==================== */
+:root, html[data-theme="light"] {
+  --bg:#f5f7fb; --surface:#ffffff; --surface2:#fafbfe;
+  --text:#0f172a; --muted:#64748b; --border:#e6e9f0;
+  --accent:#4f46e5; --accent2:#7c3aed; --accentSoft:#eef0ff;
+  --ok:#047857; --okSoft:#e6f6ef;
+  --no:#b91c1c; --noSoft:#fdeceb;
+  --unk:#475569; --unkSoft:#eef1f6;
+  --input:#ffffff; --tag:#f1f5f9; --tagText:#334155;
+  --shadowSm:0 1px 2px rgba(15,23,42,.05);
+  --shadowMd:0 4px 16px rgba(15,23,42,.07);
+  --radius:14px;
+}
+html[data-theme="dark"] {
+  --bg:#0b0f17; --surface:#131926; --surface2:#101623;
+  --text:#e8ecf4; --muted:#93a0b4; --border:#232c3d;
+  --accent:#818cf8; --accent2:#a78bfa; --accentSoft:#1b2138;
+  --ok:#34d399; --okSoft:#0f2a22;
+  --no:#f87171; --noSoft:#2a1416;
+  --unk:#94a3b8; --unkSoft:#1a2230;
+  --input:#0f1522; --tag:#1a2233; --tagText:#c7d2e3;
+  --shadowSm:0 1px 2px rgba(0,0,0,.4);
+  --shadowMd:0 8px 24px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --bg:#0b0f17; --surface:#131926; --surface2:#101623;
+    --text:#e8ecf4; --muted:#93a0b4; --border:#232c3d;
+    --accent:#818cf8; --accent2:#a78bfa; --accentSoft:#1b2138;
+    --ok:#34d399; --okSoft:#0f2a22;
+    --no:#f87171; --noSoft:#2a1416;
+    --unk:#94a3b8; --unkSoft:#1a2230;
+    --input:#0f1522; --tag:#1a2233; --tagText:#c7d2e3;
+    --shadowSm:0 1px 2px rgba(0,0,0,.4);
+    --shadowMd:0 8px 24px rgba(0,0,0,.35);
+  }
+}
+
+/* ==================== 基础 ==================== */
+*,*::before,*::after { box-sizing:border-box; }
+html,body { height:100%; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  transition:background .25s ease, color .25s ease;
+}
+::selection { background:var(--accentSoft); }
+button { font-family:inherit; cursor:pointer; }
+input,select,button { font-size:13.5px; }
+
+/* ==================== 顶栏 ==================== */
+.topbar {
+  position:sticky; top:0; z-index:60; height:62px;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 22px; gap:16px;
+  background:linear-gradient(100deg, #4338ca 0%, #6d28d9 55%, #7c3aed 100%);
+  box-shadow:0 2px 14px rgba(67,56,202,.28);
+  color:#fff;
+}
+.brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:15.5px; letter-spacing:.2px; }
+.brand .logo {
+  width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+  background:rgba(255,255,255,.16); font-size:16px; backdrop-filter:blur(4px);
+}
+.brand .ver {
+  font-size:10.5px; font-weight:600; letter-spacing:.4px; text-transform:uppercase;
+  background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.22);
+  padding:2px 7px; border-radius:999px;
+}
+.top-actions { display:flex; align-items:center; gap:10px; }
+.seg {
+  display:flex; gap:2px; padding:3px; border-radius:10px;
+  background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.18);
+}
+.seg button {
+  border:none; background:transparent; color:rgba(255,255,255,.82);
+  padding:5px 12px; border-radius:7px; font-size:12.5px; font-weight:500;
+  transition:all .16s ease;
+}
+.seg button:hover { color:#fff; background:rgba(255,255,255,.12); }
+.seg button.active { background:#fff; color:#4338ca; font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,.16); }
+
+/* 侧边栏里的浅色分段控件 */
+.seg-light {
+  background:var(--surface2); border:1px solid var(--border); padding:3px; gap:3px;
+}
+.seg-light button {
+  color:var(--muted); background:transparent; font-size:12.4px; padding:7px 6px;
+  border-radius:7px;
+}
+.seg-light button:hover { color:var(--text); background:var(--accentSoft); }
+.seg-light button.active {
+  background:linear-gradient(100deg,var(--accent),var(--accent2)); color:#fff;
+  box-shadow:0 2px 8px rgba(79,70,229,.28);
+}
+
+/* 条目里的中文标题 */
+.item .title-zh {
+  margin:3px 0 0 34px; font-size:13.2px; font-weight:600; color:var(--accent);
+  line-height:1.45; min-height:0;
+}
+.item .title-zh:empty { display:none; }
+
+/* ==================== 布局 ==================== */
+.layout { display:flex; align-items:flex-start; }
+.sidebar {
+  width:344px; flex:0 0 344px; position:sticky; top:62px;
+  height:calc(100vh - 62px); overflow-y:auto; overscroll-behavior:contain;
+  padding:20px 18px 48px;
+  background:var(--surface); border-right:1px solid var(--border);
+}
+.sidebar::-webkit-scrollbar { width:8px; }
+.sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:8px; }
+.main { flex:1; min-width:0; padding:26px 36px 70px; }
+
+/* 侧栏分组 */
+.group + .group { margin-top:22px; padding-top:20px; border-top:1px solid var(--border); }
+.group-title {
+  display:flex; align-items:center; gap:7px;
+  font-size:11.5px; font-weight:700; letter-spacing:.7px; text-transform:uppercase;
+  color:var(--muted); margin:0 0 12px;
+}
+.group-title .dot { width:6px; height:6px; border-radius:50%; background:var(--accent); }
+
+.field { margin-bottom:12px; }
+.field > label { display:block; font-size:12.5px; font-weight:600; margin-bottom:6px; color:var(--text); }
+.help { font-size:11.4px; color:var(--muted); line-height:1.55; margin-top:5px; }
+
+input[type=text], input[type=number], input[type=password], select {
+  width:100%; padding:9px 11px; border-radius:10px; color:var(--text);
+  border:1px solid var(--border); background:var(--input);
+  transition:border-color .15s, box-shadow .15s;
+}
+input[type=text]:focus, input[type=number]:focus, input[type=password]:focus, select:focus {
+  outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accentSoft);
+}
+input[type=range] { width:100%; accent-color:var(--accent); }
+
+.btn {
+  width:100%; padding:11px 14px; border-radius:11px; border:1px solid transparent;
+  font-weight:600; font-size:13.5px; transition:all .16s ease;
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+}
+.btn-primary {
+  background:linear-gradient(100deg,var(--accent),var(--accent2)); color:#fff;
+  box-shadow:0 4px 14px rgba(79,70,229,.28);
+}
+.btn-primary:hover { filter:brightness(1.06); transform:translateY(-1px); box-shadow:0 6px 18px rgba(79,70,229,.34); }
+.btn-primary:active { transform:translateY(0); }
+.btn-primary:disabled { opacity:.6; cursor:not-allowed; transform:none; box-shadow:none; }
+.btn-ghost {
+  background:var(--surface); color:var(--text); border-color:var(--border);
+}
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+.btn-sm { width:auto; padding:6px 13px; font-size:12.3px; border-radius:9px; }
+
+/* 方向勾选 */
+.checks { display:grid; gap:1px; max-height:184px; overflow-y:auto; padding:4px; border-radius:10px; background:var(--surface2); border:1px solid var(--border); }
+.checks label {
+  display:flex; align-items:flex-start; gap:8px; padding:6px 8px; border-radius:7px;
+  font-size:12.4px; cursor:pointer; line-height:1.4; transition:background .13s;
+}
+.checks label:hover { background:var(--accentSoft); }
+.checks input { margin-top:2px; accent-color:var(--accent); flex:0 0 auto; }
+
+/* 自定义主题 chip */
+.chips { display:grid; gap:6px; margin-top:8px; }
+.chip {
+  display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:9px;
+  background:var(--accentSoft); border:1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  font-size:12.2px;
+}
+.chip .lbl { font-weight:600; }
+.chip .arrow { color:var(--muted); }
+.chip .eng { color:var(--muted); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11.4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chip .rm { margin-left:auto; border:none; background:transparent; color:var(--muted); font-size:14px; line-height:1; padding:0 2px; }
+.chip .rm:hover { color:var(--no); }
+
+.note {
+  padding:10px 12px; border-radius:10px; font-size:11.6px; line-height:1.6;
+  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+}
+.note b { color:var(--text); }
+
+/* ==================== 主区域 ==================== */
+.page-head { margin-bottom:20px; }
+.page-head h1 { margin:0 0 6px; font-size:25px; font-weight:750; letter-spacing:-.3px; }
+.page-head p { margin:0; color:var(--muted); font-size:13px; line-height:1.65; max-width:760px; }
+
+.banner {
+  display:none; align-items:flex-start; gap:10px; margin-bottom:18px;
+  padding:12px 15px; border-radius:12px; font-size:12.6px; line-height:1.6;
+  background:var(--accentSoft);
+  border:1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color:var(--text);
+}
+.banner.show { display:flex; }
+.banner .ico { font-size:15px; line-height:1.3; }
+.banner.warn { background:var(--noSoft); border-color:color-mix(in srgb, var(--no) 28%, transparent); }
+.banner code { background:rgba(0,0,0,.06); padding:1px 5px; border-radius:4px; font-size:11.6px; }
+
+/* 统计条 */
+.stats {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:1px; overflow:hidden;
+  background:var(--border); border:1px solid var(--border); border-radius:var(--radius);
+  margin-bottom:22px;
+}
+.stat { background:var(--surface); padding:14px 18px; }
+.stat .k { font-size:11.6px; color:var(--muted); font-weight:500; letter-spacing:.2px; }
+.stat .v { font-size:23px; font-weight:750; margin-top:3px; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+.stat .v.sm { font-size:14px; font-weight:600; letter-spacing:0; padding-top:7px; }
+
+/* 结果头 */
+.result-head {
+  display:flex; align-items:center; justify-content:space-between; gap:14px;
+  margin-bottom:6px; padding-bottom:12px; border-bottom:1px solid var(--border);
+}
+.result-head h2 { margin:0; font-size:16px; font-weight:700; }
+.result-head .meta { font-size:11.8px; color:var(--muted); margin-top:2px; }
+
+/* ==================== 结果条目（扁平） ==================== */
+.item {
+  position:relative; padding:20px 16px 20px 26px;
+  border-bottom:1px solid var(--border);
+  transition:background .16s ease;
+  animation:fadeUp .28s ease both;
+}
+.item:last-child { border-bottom:none; }
+.item:hover { background:var(--surface); }
+.item::before {
+  content:""; position:absolute; left:6px; top:22px; bottom:22px; width:3px;
+  border-radius:3px; background:transparent; transition:background .18s ease;
+}
+.item:hover::before { background:linear-gradient(180deg,var(--accent),var(--accent2)); }
+
+.item .row1 { display:flex; align-items:flex-start; gap:12px; }
+.item .num {
+  flex:0 0 auto; font-family:ui-monospace,Consolas,monospace; font-size:11.5px;
+  color:var(--muted); font-weight:600; padding-top:4px; min-width:22px;
+}
+.item .title { flex:1; margin:0; font-size:15.3px; font-weight:650; line-height:1.44; letter-spacing:-.1px; }
+.item .title a { color:inherit; text-decoration:none; }
+.item .title a:hover { color:var(--accent); }
+
+.pill { flex:0 0 auto; font-size:11.3px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+.pill.yes { background:var(--okSoft); color:var(--ok); }
+.pill.no { background:var(--noSoft); color:var(--no); }
+.pill.unknown { background:var(--unkSoft); color:var(--unk); }
+
+.item .meta-line { margin:6px 0 0 34px; font-size:11.7px; color:var(--muted); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.item .meta-line .sep { opacity:.45; }
+
+.item .line { margin:9px 0 0 34px; font-size:13.4px; line-height:1.65; }
+.item .line .k { font-weight:650; color:var(--muted); font-size:11.6px; display:inline-block; margin-right:6px; letter-spacing:.2px; }
+.item .lines { margin-left:34px; }
+.item .lines .line { margin-left:0; }
+
+.tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:3px; }
+.tag {
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11.1px;
+  background:var(--tag); color:var(--tagText); padding:2px 8px; border-radius:6px;
+  border:1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.item .abs {
+  margin:10px 0 0 34px; padding:10px 13px; border-radius:9px;
+  background:var(--surface2); border-left:2px solid var(--border);
+  color:var(--muted); font-size:12.4px; line-height:1.68;
+}
+.item .links { margin:11px 0 0 34px; display:flex; gap:8px; flex-wrap:wrap; }
+.link-btn {
+  display:inline-flex; align-items:center; gap:5px; text-decoration:none;
+  font-size:11.9px; font-weight:600; padding:5px 11px; border-radius:8px;
+  border:1px solid var(--border); color:var(--text); background:var(--surface);
+  transition:all .15s;
+}
+.link-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accentSoft); }
+.item .status { margin:9px 0 0 34px; font-size:11.5px; color:#b45309; }
+.item .authors { margin:8px 0 0 34px; font-size:11.5px; color:var(--muted); }
+
+/* 空状态 / 骨架 */
+.empty { text-align:center; padding:64px 24px; color:var(--muted); }
+.empty .big { font-size:34px; margin-bottom:12px; opacity:.75; }
+.empty p { margin:0 0 16px; font-size:13.4px; line-height:1.7; }
+
+.sk { padding:22px 16px 22px 26px; border-bottom:1px solid var(--border); }
+.sk .l { height:11px; border-radius:6px; margin-bottom:9px; background:linear-gradient(90deg,var(--border) 25%, var(--surface2) 50%, var(--border) 75%); background-size:200% 100%; animation:shimmer 1.3s infinite linear; }
+.sk .l.w1 { width:64%; } .sk .l.w2 { width:88%; } .sk .l.w3 { width:42%; }
+
+@keyframes shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+.footnote { margin-top:30px; font-size:11.4px; color:var(--muted); line-height:1.65; }
+
+/* toast */
+.toast {
+  position:fixed; left:50%; bottom:26px; transform:translate(-50%,14px);
+  background:#0f172a; color:#fff; padding:11px 20px; border-radius:11px;
+  font-size:13px; max-width:min(680px,86vw); text-align:center; line-height:1.55;
+  box-shadow:0 10px 32px rgba(0,0,0,.28); opacity:0; pointer-events:none;
+  transition:opacity .22s ease, transform .22s ease; z-index:200;
+}
+.toast.show { opacity:1; transform:translate(-50%,0); }
+
+/* 响应式 */
+@media (max-width:1080px) {
+  .sidebar { width:300px; flex-basis:300px; }
+  .main { padding:22px 22px 60px; }
+}
+@media (max-width:860px) {
+  .layout { flex-direction:column; }
+  .sidebar { position:static; width:100%; flex-basis:auto; height:auto; border-right:none; border-bottom:1px solid var(--border); }
+  .main { padding:20px 16px 60px; }
+  .stats { grid-template-columns:repeat(2,1fr); }
+  .item .line, .item .meta-line, .item .abs, .item .links, .item .status, .item .authors { margin-left:0; }
+  .topbar { flex-wrap:wrap; height:auto; padding:10px 14px; gap:10px; }
+  .seg button { padding:5px 9px; font-size:12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 顶栏 ==================== -->
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">🧠</span>
+    <span>文献追踪看板</span>
+    <span class="ver">Browser</span>
+  </div>
+  <div class="top-actions">
+    <div class="seg" id="themeSeg">
+      <button data-theme-mode="system" class="active">跟随系统</button>
+      <button data-theme-mode="light">白天</button>
+      <button data-theme-mode="dark">黑夜</button>
+    </div>
+    <div class="seg" id="langSeg">
+      <button data-lang="zh" class="active">中文</button>
+      <button data-lang="en">English</button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ==================== 侧边栏 ==================== -->
+  <aside class="sidebar">
+
+    <div class="group">
+      <div class="group-title"><span class="dot"></span><span data-i18n="gFetch"></span></div>
+
+      <div class="field">
+        <label data-i18n="topicLabel"></label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="topicInput" data-i18n-ph="topicPh" style="flex:1">
+          <button class="btn btn-primary btn-sm" id="topicAdd" style="width:auto;padding:0 16px" data-i18n="topicAdd"></button>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="help" data-i18n="topicHelp"></div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="paradigmLabel"></label>
+        <div class="seg seg-light" id="paradigmSeg">
+          <button data-paradigm="any" data-i18n="pdAny"></button>
+          <button data-paradigm="experiment" data-i18n="pdExperiment"></button>
+          <button data-paradigm="mechanism" data-i18n="pdMechanism"></button>
+          <button data-paradigm="predictive" class="active" data-i18n="pdPredictive"></button>
+        </div>
+        <div class="help" data-i18n="paradigmHelp"></div>
+      </div>
+
+      <div class="field" id="nnField">
+        <label data-i18n="dirLabel"></label>
+        <div class="checks" id="dirChecks"></div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="yearsLabel"></label>
+        <input type="number" id="years" value="0.5" min="0.1" max="10" step="0.1">
+        <div class="help" id="yearsHelp"></div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="maxLabel"></label>
+        <input type="number" id="maxPer" value="25" min="5" max="100" step="5">
+      </div>
+
+      <button class="btn btn-primary" id="fetchBtn">
+        <span id="fetchIcon">🚀</span><span data-i18n="fetchBtn"></span>
+      </button>
+      <div class="help" id="fetchHelp" data-i18n="fetchHelp"></div>
+
+      <label class="check-inline">
+        <input type="checkbox" id="mixDirs" style="accent-color:var(--accent)">
+        <span data-i18n="mixDirsLabel"></span>
+      </label>
+      <div class="help" data-i18n="mixDirsHelp"></div>
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span class="dot"></span><span data-i18n="gSearch"></span></div>
+
+      <div class="field">
+        <label data-i18n="osLabel"></label>
+        <select id="osSel">
+          <option value="all" data-i18n="osAll"></option>
+          <option value="yes" data-i18n="osYes"></option>
+          <option value="no" data-i18n="osNo"></option>
+          <option value="unknown" data-i18n="osUnknown"></option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label data-i18n="catFilterLabel"></label>
+        <select id="catSel"></select>
+      </div>
+
+      <div class="field">
+        <label data-i18n="sortLabel"></label>
+        <select id="sortSel">
+          <option value="relevance" data-i18n="sortRelevance"></option>
+          <option value="date" data-i18n="sortDate"></option>
+        </select>
+        <div class="help" data-i18n="sortHelp"></div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="limitLabel"></label>
+        <input type="range" id="limit" min="10" max="200" value="60" step="10">
+      </div>
+
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer">
+          <input type="checkbox" id="autoZh" checked style="accent-color:var(--accent)">
+          <span data-i18n="autoZhLabel"></span>
+        </label>
+        <div class="help" data-i18n="autoZhHelp"></div>
+
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer;margin-top:10px">
+          <input type="checkbox" id="showAbs" style="accent-color:var(--accent)">
+          <span data-i18n="showAbsLabel"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span class="dot"></span><span data-i18n="gLLM"></span></div>
+
+      <div class="field">
+        <label data-i18n="llmKeyLabel"></label>
+        <input type="password" id="llmKey" data-i18n-ph="llmKeyPh" autocomplete="off" spellcheck="false">
+        <div class="help" data-i18n="llmKeyHelp"></div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="llmModelLabel"></label>
+        <input type="text" id="llmModel" value="deepseek-chat" spellcheck="false">
+      </div>
+
+      <div class="field">
+        <label data-i18n="llmBaseLabel"></label>
+        <input type="text" id="llmBase" value="https://api.deepseek.com" spellcheck="false">
+      </div>
+
+      <button class="btn btn-ghost btn-sm" id="llmSave" style="width:100%" data-i18n="llmSave"></button>
+      <button class="btn btn-ghost btn-sm" id="llmClear" style="width:100%;margin-top:6px" data-i18n="llmClear"></button>
+      <div class="help" id="llmStatus"></div>
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span class="dot"></span><span data-i18n="gData"></span></div>
+      <div class="field">
+        <button class="btn btn-ghost btn-sm" id="csvBtn" style="width:100%" data-i18n="exportBtn"></button>
+        <button class="btn btn-ghost btn-sm" id="clearBtn" style="width:100%;margin-top:8px" data-i18n="clearBtn"></button>
+      </div>
+      <div class="note" data-i18n="noteData"></div>
+    </div>
+
+  </aside>
+
+  <!-- ==================== 主区域 ==================== -->
+  <main class="main">
+    <div class="page-head">
+      <h1 data-i18n="appTitle"></h1>
+      <p data-i18n="appCaption"></p>
+    </div>
+
+    <div class="banner" id="banner">
+      <span class="ico">ℹ️</span>
+      <span id="bannerText"></span>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="k" data-i18n="statTotal"></div><div class="v" id="statTotal">0</div></div>
+      <div class="stat"><div class="k" data-i18n="statOpen"></div><div class="v" id="statOpen">0</div></div>
+      <div class="stat"><div class="k" data-i18n="statShown"></div><div class="v" id="statShown">0</div></div>
+      <div class="stat"><div class="k" data-i18n="statTime"></div><div class="v sm" id="statTime">—</div></div>
+    </div>
+
+    <div class="result-head">
+      <div>
+        <h2 id="resultTitle">—</h2>
+        <div class="meta" id="resultMeta"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="quickFilter" data-i18n-ph="filterPh" style="width:200px">
+        <button class="btn btn-ghost btn-sm" id="allBtn" style="display:none"></button>
+        <button class="btn btn-ghost btn-sm" id="nextBtn" data-i18n="nextBtn"></button>
+        <button class="btn btn-ghost btn-sm" id="reloadBtn" title="重新抓取">↻</button>
+      </div>
+    </div>
+
+    <div id="list"></div>
+
+    <div class="footnote" data-i18n="footnote"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 本机密钥文件（已被 .gitignore 忽略）。文件不存在时浏览器只是加载失败，不影响使用 -->
+<script src="llm-key.local.js"></script>
+
+<script>
+/* ============================================================
+   1. 国际化
+   ============================================================ */
+const I18N = {
+  zh: {
+    gFetch:"抓取范围", gSearch:"检索与筛选", gData:"数据", gLLM:"大模型（可选）",
+    llmKeyLabel:"API Key",
+    llmKeyPh:"sk-…",
+    llmKeyHelp:"只保存在本机浏览器，不写进文件、不上传。留空则用本地规则抽取。",
+    llmModelLabel:"模型名",
+    llmBaseLabel:"接口地址",
+    llmSave:"保存并测试连接",
+    llmClear:"清除本机 Key",
+    llmCleared:"已清除浏览器里保存的 Key",
+    llmNoKey:"未填 Key，将只用本地规则抽取",
+    llmTesting:"正在测试连接…",
+    llmOk:"连接成功，抓取时会调用大模型",
+    llmFail:"连接失败",
+    llmExtracting:"🤖 大模型抽取中… {n}/{total}（并发 3 路）",
+    llmBadge:"大模型",
+    llmFailedBanner:"大模型调用失败，已回退到本地规则。原因：{msg}<br><small>常见原因：浏览器跨域限制（CORS）、Key 无效、余额不足。若持续失败，请改用 app.py 后端版。</small>",
+    topicLabel:"自定义主题词（支持中文）",
+    topicPh:"如：电池寿命预测",
+    topicAdd:"翻译并添加",
+    topicHelp:"不受下面方向限制，任意主题都能追踪。中文先用内置词典翻译，词典没收录的词会自动联网翻译。",
+    dirLabel:"神经网络类型（可多选）",
+    paradigmLabel:"模型类型（可选）",
+    pdAny:"不限",
+    pdExperiment:"实验",
+    pdMechanism:"机理模型",
+    pdPredictive:"预测模型",
+    paradigmHelp:"检索以主题词为主，模型类型只是附加限定。选「不限」就只用主题词查；若加了限定后搜不到，会自动放宽为仅用主题词再试一次。",
+    autoZhLabel:"自动把标题与核心贡献翻成中文",
+    autoZhHelp:"使用公开翻译接口，逐条异步翻译并缓存；失败时保留英文原文。",
+    yearsLabel:"时间窗口（年）",
+    yearsHelp:"0.5 = 半年，0.6 ≈ 7 个月，1 = 一年",
+    maxLabel:"每个方向最多抓取",
+    fetchBtn:"抓取最新论文",
+    fetchHelp:"按「主题词 + 模型类型」实时检索 OpenAlex / arXiv。",
+    mixDirsLabel:"同时按选中的神经网络类型检索",
+    mixDirsHelp:"默认只按主题词检索。勾选后会把神经网络方向的论文一起抓进来，结果会更杂。",
+    kwLabel:"关键词（支持中文）",
+    kwPh:"如：扩散模型 / battery",
+    searchBtn:"搜索",
+    osLabel:"代码开源状态",
+    osAll:"全部", osYes:"仅开源 (Yes)", osNo:"仅未开源 (No)", osUnknown:"状态未知 (Unknown)",
+    catFilterLabel:"只看某个方向",
+    limitLabel:"最多展示条数",
+    sortLabel:"排序方式",
+    sortRelevance:"相关度优先（推荐）",
+    sortDate:"最新优先",
+    sortHelp:"相关度优先只搜标题和摘要，最贴题；最新优先会把最新但不相关的论文顶到前面。",
+    filterPh:"在结果中筛选关键词…",
+    nextBtn:"换一批 ⟳",
+    showAll:"显示全部（{n}）",
+    batchTag:"第 {page} 批",
+    noNewBanner:"本次没有新增文献（第 {page} 页都是已收录的）。同一个主题 + 同一个时间窗口，OpenAlex 返回的就是同一批结果。可以：点「换一批 ⟳」翻到下一页，或换个主题词 / 缩小时间窗口。",
+    showAbsLabel:"显示英文摘要",
+    exportBtn:"导出 CSV",
+    clearBtn:"清空本地数据",
+    noteData:"数据保存在浏览器 localStorage，刷新不丢。换电脑/换浏览器不会同步。",
+    appTitle:"神经网络领域文献追踪",
+    appCaption:"先选模型类型（实验 / 机理模型 / 预测模型），再填主题词或挑神经网络类型，实时抓取最新论文并整理成【核心贡献】【数据集 / 方法】【代码是否开源】。标题与核心贡献会自动翻成中文，英文原文同时保留。",
+    statTotal:"库中论文", statOpen:"已开源", statShown:"当前显示", statTime:"最近抓取",
+    results:"共 {n} 条结果",
+    resultMeta:"时间窗口 {years} 年（≈{days} 天）· {src}",
+    srcLive:"实时数据", srcSample:"示例数据",
+    emptyTitle:"还没有数据",
+    emptyDesc:"在左侧添加主题词，或直接选「预测模型 + 神经网络类型」，然后点「抓取最新论文」。",
+    emptyFilter:"当前条件下没有匹配结果，试着放宽关键词或时间窗口。",
+    resetFilter:"清空筛选",
+    contribution:"核心贡献", datasets:"数据集 / 方法", notExtracted:"未提取到",
+    noAbstract:"该来源未提供摘要",
+    authors:"作者", evidence:"原文依据",
+    badgeYes:"🟢 开源", badgeNo:"🔴 未开源", badgeUnknown:"⚪ 未知",
+    arxiv:"arXiv", paper:"原文", pdf:"PDF", code:"代码",
+    loading:"正在抓取 {name} …（{i}/{n}）",
+    loadingAll:"正在抓取…",
+    done:"完成：新增 {n} 篇",
+    failed:"抓取失败：{msg}",
+    fallbackSample:"网络不可用，已回退到示例数据。可以尝试：① 换网络/开代理 ② 稍后重试 ③ 直接运行 app.py（后端版）。",
+    sampleBanner:"当前是<b>示例数据</b>（未联网）。点击左侧「抓取最新论文」即可拉取 arXiv 实时数据。",
+    liveBanner:"已实时抓取 {n} 篇（数据源：<b>OpenAlex / arXiv</b>），时间窗口 {years} 年。结构化字段由<b>本地规则</b>抽取，未调用大模型。",
+    ruleBadge:"规则抽取",
+    topicAdded:"已添加：{label} → {eng}",
+    topicTranslating:"翻译中…",
+    topicFail:"无法翻译「{text}」：词典未收录，联网翻译也失败了。请改用英文描述。",
+    topicDup:"该主题词已存在",
+    noTopic:"请先输入主题词",
+    needTarget:"请至少选择一个神经网络类型或添加一个主题词",
+    needTopicFirst:"「实验 / 机理模型」模式需要先在上面添加主题词",
+    kwTranslated:"已自动翻译为：{terms}",
+    kwFailed:"没有内置译名，按原文搜索",
+    kwAscii:"英文关键词，直接检索",
+    cleared:"已清空",
+    exported:"已导出 {n} 条",
+    nothing: "没有可导出的数据",
+    themeSystem:"跟随系统", themeLight:"白天", themeDark:"黑夜",
+    footnote:"数据来源：arXiv API（export.arxiv.org）· 结构化字段为本地规则抽取，仅供参考，请以论文原文为准。"
+  },
+  en: {
+    gFetch:"Fetch scope", gSearch:"Search & filter", gData:"Data", gLLM:"LLM (optional)",
+    llmKeyLabel:"API key",
+    llmKeyPh:"sk-…",
+    llmKeyHelp:"Stored only in this browser — never written to files or uploaded. Leave empty to use local rules.",
+    llmModelLabel:"Model",
+    llmBaseLabel:"Endpoint",
+    llmSave:"Save & test connection",
+    llmClear:"Clear local key",
+    llmCleared:"Key removed from this browser",
+    llmNoKey:"No key — local rules will be used",
+    llmTesting:"Testing connection…",
+    llmOk:"Connected — the LLM will be used when fetching",
+    llmFail:"Connection failed",
+    llmExtracting:"🤖 Extracting… {n}/{total} (3 in parallel)",
+    llmBadge:"LLM",
+    llmFailedBanner:"LLM call failed; fell back to local rules. Reason: {msg}<br><small>Common causes: browser CORS restriction, invalid key, no balance. If it keeps failing, use the app.py backend version.</small>",
+    topicLabel:"Custom topic (Chinese supported)",
+    topicPh:"e.g. battery lifetime prediction",
+    topicAdd:"Translate & add",
+    topicHelp:"Any topic works. Chinese goes through the built-in dictionary first, then online translation for words it does not know.",
+    dirLabel:"Neural-network type (multi-select)",
+    paradigmLabel:"Model type (optional)",
+    pdAny:"Any",
+    pdExperiment:"Experimental",
+    pdMechanism:"Mechanistic",
+    pdPredictive:"Predictive",
+    paradigmHelp:"Topics are the primary query; the model type is only an optional qualifier. Choose «Any» to search with topics alone. If a qualifier returns nothing, it is automatically relaxed to the topic only.",
+    autoZhLabel:"Auto-translate titles & contributions into Chinese",
+    autoZhHelp:"Uses a public translation API, one item at a time, cached locally; English is kept when it fails.",
+    yearsLabel:"Time window (years)",
+    yearsHelp:"0.5 = half a year, 0.6 ≈ 7 months, 1 = one year",
+    maxLabel:"Max papers per field",
+    fetchBtn:"Fetch latest papers",
+    fetchHelp:"Searches OpenAlex / arXiv live with «topic + model type».",
+    mixDirsLabel:"Also search the selected neural-network types",
+    mixDirsHelp:"By default only topics are searched. Tick this to pull the neural-network fields in as well — results get noisier.",
+    kwLabel:"Keyword (Chinese supported)",
+    kwPh:"e.g. diffusion model / 电池",
+    searchBtn:"Search",
+    osLabel:"Code open-source status",
+    osAll:"All", osYes:"Open source (Yes)", osNo:"Closed (No)", osUnknown:"Unknown",
+    catFilterLabel:"Filter by field",
+    limitLabel:"Max results shown",
+    sortLabel:"Sort by",
+    sortRelevance:"Relevance (recommended)",
+    sortDate:"Newest first",
+    sortHelp:"Relevance searches title+abstract only and stays on-topic; newest-first may surface recent but unrelated papers.",
+    filterPh:"Filter loaded results…",
+    nextBtn:"Next batch ⟳",
+    showAll:"Show all ({n})",
+    batchTag:"batch {page}",
+    noNewBanner:"No new papers this time (page {page} was already stored). The same topic + window returns the same set in OpenAlex. Try «Next batch ⟳», another topic, or a narrower window.",
+    showAbsLabel:"Show English abstract",
+    exportBtn:"Export CSV",
+    clearBtn:"Clear local data",
+    noteData:"Data is stored in browser localStorage; survives refresh but is not synced across devices.",
+    appTitle:"Neural Network Literature Tracker",
+    appCaption:"Pick a model type (experimental / mechanistic / predictive), then add topics or choose a neural-network family. Papers are fetched live and distilled into [contribution] [datasets/methods] [open-source status]. Titles and contributions are auto-translated into Chinese while the English original stays visible.",
+    statTotal:"Papers", statOpen:"Open source", statShown:"Shown", statTime:"Last fetch",
+    results:"{n} result(s)",
+    resultMeta:"Window {years} y (≈{days} days) · {src}",
+    srcLive:"live data", srcSample:"sample data",
+    emptyTitle:"No data yet",
+    emptyDesc:"Add a topic on the left, or just pick «Predictive» plus a neural-network family, then click Fetch latest papers.",
+    emptyFilter:"Nothing matches the current filters. Try a broader keyword or a longer window.",
+    resetFilter:"Clear filters",
+    contribution:"Contribution", datasets:"Datasets / methods", notExtracted:"not extracted",
+    noAbstract:"no abstract from this source",
+    authors:"Authors", evidence:"Evidence",
+    badgeYes:"🟢 Open", badgeNo:"🔴 Closed", badgeUnknown:"⚪ Unknown",
+    arxiv:"arXiv", paper:"Paper", pdf:"PDF", code:"Code",
+    loading:"Fetching {name} … ({i}/{n})",
+    loadingAll:"Fetching…",
+    done:"Done: {n} new paper(s)",
+    failed:"Fetch failed: {msg}",
+    fallbackSample:"Network unavailable — fell back to sample data. Try: ① another network/proxy ② retry later ③ run app.py (backend version).",
+    sampleBanner:"Currently showing <b>sample data</b> (no network). Click Fetch latest papers to pull live arXiv data.",
+    liveBanner:"Fetched {n} live papers (<b>OpenAlex / arXiv</b>) over a {years}-year window. Structured fields are extracted by <b>local rules</b>, no LLM call.",
+    ruleBadge:"rule-based",
+    topicAdded:"Added: {label} → {eng}",
+    topicTranslating:"Translating…",
+    topicFail:'Cannot translate "{text}": not in the dictionary and online translation failed. Please use English.',
+    topicDup:"Topic already added",
+    noTopic:"Type a topic first",
+    needTarget:"Pick at least one neural-network type or add a topic",
+    needTopicFirst:"Experimental / Mechanistic modes need at least one topic above",
+    kwTranslated:"Auto-translated to: {terms}",
+    kwFailed:"No built-in translation; searched as-is",
+    kwAscii:"English keyword, searched directly",
+    cleared:"Cleared",
+    exported:"Exported {n} row(s)",
+    nothing:"Nothing to export",
+    themeSystem:"System", themeLight:"Light", themeDark:"Dark",
+    footnote:"Source: arXiv API (export.arxiv.org) · Structured fields are rule-extracted locally and for reference only."
+  }
+};
+
+const CATS = [
+  ["cnn_vision","卷积神经网络 / 计算机视觉","Convolutional NN / Vision","cs.CV","convolutional neural network"],
+  ["transformer_llm","Transformer / 大语言模型","Transformer / LLM","cs.CL","large language model transformer"],
+  ["gnn","图神经网络 (GNN)","Graph Neural Networks","cs.LG","graph neural network"],
+  ["generative","生成模型（扩散 / GAN / VAE）","Generative models","cs.LG","diffusion model image generation"],
+  ["rl","强化学习与决策","Reinforcement learning","cs.LG","reinforcement learning"],
+  ["pinn","物理信息神经网络 (PINN)","Physics-informed NN","cs.LG","physics-informed neural network"],
+  ["theory_optim","神经网络理论与优化","Theory & optimization","cs.LG","generalization optimization neural network theory"],
+  ["timeseries","时间序列 / 序列建模","Time series","cs.LG","time series forecasting"],
+  ["multimodal","多模态 / 视觉-语言","Multimodal","cs.CV","multimodal vision language model"],
+  ["efficient","高效推理与模型压缩","Efficient inference","cs.LG","inference acceleration quantization"],
+  ["nas","神经架构搜索 (NAS)","Neural Architecture Search","cs.LG","neural architecture search"],
+  ["snn","脉冲神经网络 / 类脑计算","Spiking / neuromorphic","cs.NE","spiking neural network"],
+  ["speech","语音与音频神经网络","Speech & audio","eess.AS","speech recognition neural"],
+  ["custom","自定义主题词","Custom topics","",""]
+];
+const CAT_MAP = Object.fromEntries(CATS.map(c => [c[0], c]));
+
+/* 研究范式：决定检索短语里附加的限定词 */
+const PARADIGM = {
+  any:        { zh:"不限",     en:"Any",          phrase:"" },
+  experiment: { zh:"实验",     en:"Experimental", phrase:"experimental study" },
+  mechanism:  { zh:"机理模型", en:"Mechanistic",  phrase:"mechanistic model" },
+  predictive: { zh:"预测模型", en:"Predictive",   phrase:"prediction model" }
+};
+function paradigmName() {
+  const p = PARADIGM[state.paradigm] || PARADIGM.predictive;
+  return state.lang === "zh" ? p.zh : p.en;
+}
+
+/* 中文 -> 英文（离线词典） */
+const KW_DICT = {
+  "扩散模型":"diffusion model","图神经网络":"graph neural network","大语言模型":"large language model",
+  "大模型":"large language model","注意力机制":"attention mechanism","强化学习":"reinforcement learning",
+  "知识蒸馏":"knowledge distillation","模型压缩":"model compression","推理加速":"inference acceleration",
+  "神经架构搜索":"neural architecture search","物理信息":"physics-informed","脉冲神经网络":"spiking neural network",
+  "时间序列":"time series","多模态":"multimodal","语音识别":"speech recognition","目标检测":"object detection",
+  "图像分割":"image segmentation","图像生成":"image generation","量化":"quantization","剪枝":"pruning",
+  "迁移学习":"transfer learning","自监督":"self-supervised","对比学习":"contrastive learning",
+  "联邦学习":"federated learning","推荐系统":"recommender system","知识图谱":"knowledge graph",
+  "电池":"battery","电池寿命":"battery lifetime","寿命预测":"lifetime prediction","剩余使用寿命":"remaining useful life",
+  "蛋白质":"protein","分子":"molecule","材料":"material","气候":"climate","天气":"weather",
+  "遥感":"remote sensing","医学影像":"medical imaging","病理":"pathology","药物":"drug","金融":"finance",
+  "预测":"prediction","检测":"detection","分类":"classification","分割":"segmentation","识别":"recognition",
+  "估计":"estimation","生成":"generation","建模":"modeling","分析":"analysis","学习":"learning",
+  "网络":"network","模型":"model","算法":"algorithm","系统":"system","特征":"feature",
+  /* 扩充：跨学科常用词，减少「无法翻译」 */
+  "脑机接口":"brain-computer interface","脑电":"EEG","神经影像":"neuroimaging","认知":"cognitive",
+  "情绪":"emotion","语言":"language","文本":"text","图像":"image","视频":"video","音频":"audio",
+  "量子":"quantum","半导体":"semiconductor","二维材料":"two-dimensional material","催化":"catalysis",
+  "光伏":"photovoltaic","风能":"wind energy","电网":"power grid","储能":"energy storage",
+  "基因":"gene","细胞":"cell","疾病":"disease","医疗":"healthcare","诊断":"diagnosis",
+  "药物设计":"drug design","分子动力学":"molecular dynamics","密度泛函":"density functional theory",
+  "流体":"fluid","湍流":"turbulence","地震":"earthquake","海洋":"ocean","冰川":"glacier",
+  "生态":"ecology","农业":"agriculture","作物":"crop","土壤":"soil","污染":"pollution",
+  "交通":"traffic","物流":"logistics","供应链":"supply chain","无人机":"UAV","卫星":"satellite",
+  "雷达":"radar","通信":"communication","无线":"wireless","边缘计算":"edge computing",
+  "物联网":"Internet of Things","区块链":"blockchain","网络安全":"cybersecurity","隐私":"privacy",
+  "联邦":"federated","对抗":"adversarial","可解释性":"interpretability","公平性":"fairness",
+  "因果":"causal","推理":"reasoning","规划":"planning","决策":"decision","控制":"control",
+  "机器人":"robot","具身":"embodied","自动驾驶":"autonomous driving","导航":"navigation",
+  "教育":"education","金融":"finance","经济":"economics","法律":"law","推荐":"recommendation",
+  "排序":"ranking","检索":"retrieval","问答":"question answering","摘要":"summarization",
+  "翻译":"machine translation","对话":"dialogue","知识图谱":"knowledge graph","图":"graph"
+};
+
+/* ============================================================
+   2. 状态
+   ============================================================ */
+const LS_KEY = "nn_tracker_papers_v2";   // v2：旧缓存里的「无摘要」记录不再复用
+const state = {
+  lang:"zh", theme:"system",
+  papers:[], source:"sample", lastFetch:"",
+  selected:["transformer_llm","cnn_vision"],
+  topics:[],
+  paradigm:"predictive",     // experiment | mechanism | predictive
+  years:0.5, maxPer:25,
+  sortBy:"relevance",        // relevance（默认，贴题）| date（最新，但可能偏题）
+  page:1,                    // 第几页结果，用于「换一批」拉取不同批次
+  batch:null,                // 当前展示批次的 id 列表；null 表示展示全部
+  os:"all", cat:"all", limit:60, showAbs:false,
+  filterText:"",
+  autoZh:true,
+  loading:false
+};
+
+/* ============================================================
+   3. 示例数据（首次打开/断网时展示）
+   ============================================================ */
+const SAMPLES = [
+  { id:"2611.04812", title:"Speculative Decoding with Adaptive Draft Length for Long-Context LLM Inference",
+    date:"2026-11-22", cat:"cs.CL", groups:["transformer_llm"], authors:"Y. Chen, L. Wang, M. Zhao",
+    contribution:"提出自适应草稿长度调度，把长上下文 LLM 解码延迟降低约 2 倍而输出分布不变",
+    datasets:["LLaMA-3-8B","LongBench","speculative decoding"], open:"yes",
+    url:"https://github.com/example/adaptive-spec",
+    abstract:"Speculative decoding accelerates autoregressive inference but its fixed draft length is suboptimal for long contexts. We propose an adaptive draft length schedule driven by a lightweight acceptance predictor. Experiments on LLaMA-3-8B across LongBench show 2.1x latency reduction with identical output distribution." },
+  { id:"2611.04733", title:"Rethinking Convolutional Inductive Bias in Vision Transformers",
+    date:"2026-11-21", cat:"cs.CV", groups:["cnn_vision"], authors:"R. Kumar, H. Sato",
+    contribution:"用卷积-注意力混合块恢复局部性先验，使 ViT 在少样本图像分类上优于纯注意力基线",
+    datasets:["ImageNet-1K","CIFAR-100","HybridViT"], open:"no", url:"",
+    abstract:"Vision Transformers lack the locality inductive bias of convolutions, which hurts data efficiency. We study hybrid blocks that interleave depthwise convolution with self-attention. On few-shot splits of ImageNet-1K and CIFAR-100, the hybrid model outperforms purely attentional baselines. The code is proprietary and will not be released." },
+  { id:"2611.04688", title:"Physics-Informed Neural Operators for Subsurface Flow with Sparse Observations",
+    date:"2026-11-21", cat:"cs.LG", groups:["pinn"], authors:"T. Novak, A. Ferreira",
+    contribution:"用稀疏观测约束的物理信息神经算子求解地下水流方程，误差低于纯数据驱动基线",
+    datasets:["FNO","Darcy flow","subsurface flow"], open:"unknown", url:"",
+    abstract:"Subsurface flow modeling requires solving Darcy-type PDEs with very sparse observations. We combine a Fourier neural operator with a physics residual term. The method reduces relative L2 error compared with purely data-driven baselines." },
+  { id:"2611.04510", title:"Scalable Message Passing for Billion-Node Graphs",
+    date:"2026-11-20", cat:"cs.LG", groups:["gnn"], authors:"S. Iyer, K. Novak, P. Du",
+    contribution:"提出分块消息传递与邻居采样调度，让 GNN 能在单机内存内训练十亿节点图",
+    datasets:["GraphSAGE","OGBN-Papers100M"], open:"yes", url:"https://github.com/example/blockmp",
+    abstract:"Message passing on billion-node graphs is memory bound. We propose block-wise message passing that schedules neighbor sampling to bound peak memory. On OGBN-Papers100M our method trains in a single node." },
+  { id:"2611.04319", title:"KV Cache Quantization without Retraining",
+    date:"2026-11-19", cat:"cs.LG", groups:["efficient"], authors:"D. Rossi, W. Zhang",
+    contribution:"提出免训练的 KV cache 4bit 量化方案，把长上下文推理显存降到约四分之一",
+    datasets:["LLaMA-2-7B","LongBench"], open:"yes", url:"https://github.com/example/kvq",
+    abstract:"Long-context inference is dominated by KV cache memory. We propose a post-training group-wise quantization scheme for KV cache that needs no fine-tuning. On LLaMA-2-7B, memory drops to roughly one quarter with under 0.3 point average degradation." },
+  { id:"2611.04255", title:"Patch-State Space Models for Traffic Speed Forecasting",
+    date:"2026-11-18", cat:"cs.LG", groups:["timeseries"], authors:"H. Li, B. Okafor, Y. Sun",
+    contribution:"结合 patch 切分与状态空间模型，在高速路短时速度预测上降低 MAE 且保持线性复杂度",
+    datasets:["METR-LA","PEMS-BAY","PatchSSM"], open:"no", url:"",
+    abstract:"Short-term traffic speed forecasting is challenging due to long-range temporal dependencies. We combine patch tokenization with a state space model, achieving linear complexity. On METR-LA and PEMS-BAY the model lowers MAE over transformer baselines. The implementation is not publicly available." },
+  { id:"2611.03988", title:"Early Prediction of Lithium-Ion Battery Lifetime from Partial Charging Curves",
+    date:"2026-11-22", cat:"eess.SY", groups:["custom"], authors:"Q. Zhou, A. Petrov, L. Chen",
+    contribution:"仅用前 100 个循环的部分充电曲线预测锂电池寿命，公开数据集上误差低于 8%",
+    datasets:["Severson battery dataset","LFP cells"], open:"yes", url:"https://github.com/example/battery-early-life",
+    abstract:"Accurate battery lifetime prediction is essential for second-life applications. We show that features extracted from the first 100 cycles of partial charging curves are sufficient for early prediction. On the Severson LFP dataset the model reaches under 8% MAPE." },
+  { id:"2611.03877", title:"Protein Structure Prediction with Sparse Experimental Constraints",
+    date:"2026-11-21", cat:"q-bio.BM", groups:["custom"], authors:"E. Nowak, S. Raman",
+    contribution:"在少量实验约束条件下提升蛋白质结构预测精度，为低分辨率冷冻电镜提供了补充方案",
+    datasets:["CASP15","PDB","cryo-EM"], open:"no", url:"",
+    abstract:"Structure prediction remains difficult when experimental constraints are sparse. We integrate cryo-EM density maps as soft constraints into a diffusion-based structure generator. On CASP15 targets the method improves backbone accuracy." }
+];
+
+/* ============================================================
+   4. 工具函数
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const CJK = /[\u4e00-\u9fff]/;
+function t(k, v) {
+  let s = (I18N[state.lang] || I18N.zh)[k] || I18N.zh[k] || k;
+  if (v) Object.keys(v).forEach(x => { s = s.replace("{" + x + "}", v[x]); });
+  return s;
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function catName(key) {
+  const c = CAT_MAP[key];
+  if (!c) return key.replace(/^自定义｜/, "");
+  return state.lang === "zh" ? c[1] : c[2];
+}
+function yearsToDays(y) { return Math.max(1, Math.round(y * 365.25)); }
+
+function toast(msg) {
+  const el = $("toast");
+  el.innerHTML = msg;
+  el.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("show"), 3600);
+}
+
+/* 中文 → 英文短语（逐词替换） */
+function translateZh(text) {
+  if (!CJK.test(text)) return { eng:"", covered:true };
+  let rest = text;
+  const keys = Object.keys(KW_DICT).sort((a,b) => b.length - a.length);
+  keys.forEach(k => { if (rest.includes(k)) rest = rest.split(k).join(" "); });
+  const covered = !CJK.test(rest);
+  let out = text;
+  keys.forEach(k => { if (out.includes(k)) out = out.split(k).join(" " + KW_DICT[k] + " "); });
+  out = out.replace(/[\u4e00-\u9fff]/g," ").replace(/[，,。、；;：:（）()【】]/g," ").replace(/\s{2,}/g," ").trim();
+  return { eng: out, covered };
+}
+
+/* 主题词翻译：词典 → 联网翻译（MyMemory，公开接口，允许浏览器跨域） */
+async function translateTopic(text) {
+  const r = translateZh(text);
+  if (r.covered && r.eng) return { eng: r.eng, src: "dict" };
+
+  try {
+    const url = "https://api.mymemory.translated.net/get?q=" + encodeURIComponent(text) +
+                "&langpair=" + encodeURIComponent("zh-CN|en");
+    const res = await fetch(url, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      const out = ((data.responseData && data.responseData.translatedText) || "").trim();
+      if (out && !CJK.test(out) && out.toLowerCase() !== text.toLowerCase()) {
+        return { eng: out.replace(/\s{2,}/g," ").replace(/[.。]$/,""), src: "web" };
+      }
+    }
+  } catch (e) { /* 联网翻译失败，走下面的局部结果 */ }
+
+  // 联网失败时，至少把词典能翻的那部分用上
+  if (r.eng) return { eng: r.eng, src: "partial" };
+  return { eng: "", src: "failed" };
+}
+
+/* ============================================================
+   5.5 标题 / 核心贡献 的中文翻译（异步逐条 + 本地缓存）
+   ============================================================ */
+const ZH_KEY = "nn_zh_cache_v1";
+let zhCache = {};
+let zhRunning = false;
+
+function loadZhCache() {
+  try { zhCache = JSON.parse(localStorage.getItem(ZH_KEY) || "{}"); }
+  catch (e) { zhCache = {}; }
+}
+function saveZhCache() {
+  try { localStorage.setItem(ZH_KEY, JSON.stringify(zhCache)); } catch (e) {}
+}
+function applyZhCache() {
+  for (const p of state.papers) {
+    const c = zhCache[p.id];
+    if (c) {
+      if (c.t) p.titleZh = c.t;
+      if (c.c) p.contribZh = c.c;
+    }
+  }
+}
+
+/* MyMemory 免费接口，允许浏览器跨域；超出长度会截断 */
+async function mmTranslate(text, pair) {
+  if (!text) return "";
+  const q = text.length > 470 ? text.slice(0, 470) + "…" : text;
+  const url = "https://api.mymemory.translated.net/get?q=" + encodeURIComponent(q) +
+              "&langpair=" + encodeURIComponent(pair);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  const out = ((data.responseData && data.responseData.translatedText) || "").trim();
+  if (!out) throw new Error("空译文");
+  if (!CJK.test(out)) throw new Error("译文不含中文");
+  return out;
+}
+
+function updateItemZh(p) {
+  const node = document.querySelector('.item[data-id="' + p.id + '"]');
+  if (!node) return;
+  const tEl = node.querySelector(".title-zh");
+  if (tEl && p.titleZh) tEl.textContent = p.titleZh;
+  const cEl = node.querySelector(".contrib");
+  if (cEl && p.contribZh) cEl.textContent = p.contribZh;
+}
+
+async function translateLoop() {
+  if (zhRunning || !state.autoZh || state.loading) return;   // 抓取/抽取期间不抢带宽
+  zhRunning = true;
+  let fails = 0;
+  try {
+    const rows = visiblePapers().slice(0, state.limit);
+    for (const p of rows) {
+      const cached = zhCache[p.id] || {};
+      const needTitle = !cached.t && p.title;
+      const needContrib = !cached.c && p.contribution && !CJK.test(p.contribution);
+      if (!needTitle && !needContrib) continue;
+
+      let t = cached.t;
+      let c = cached.c;
+      try {
+        if (!t) t = await mmTranslate(p.title, "en|zh-CN");
+        if (!c) c = needContrib ? await mmTranslate(p.contribution, "en|zh-CN") : (p.contribution || "");
+        fails = 0;
+      } catch (e) {
+        fails++;
+        if (fails >= 3) break;      // 连续失败就停，避免刷爆配额
+        continue;                    // 单条失败不影响后面的
+      }
+
+      zhCache[p.id] = { t: t, c: c };
+      p.titleZh = t;
+      p.contribZh = c;
+      updateItemZh(p);
+      saveZhCache();
+      await new Promise(r => setTimeout(r, 220));
+    }
+  } finally {
+    zhRunning = false;
+  }
+}
+
+/* ============================================================
+   5. 从 arXiv 抓取
+   ============================================================ */
+const ARXIV = "https://export.arxiv.org/api/query";
+const OPENALEX = "https://api.openalex.org/works";
+
+function dateRange() {
+  const days = yearsToDays(state.years);
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 86400000);
+  const compact = d => d.toISOString().replace(/[-:T]/g,"").slice(0,12);
+  const iso = d => d.toISOString().slice(0,10);
+  return { days, start, end, compact, iso,
+           arxivRange: "submittedDate:[" + compact(start) + " TO " + compact(end) + "]",
+           oaRange: "from_publication_date:" + iso(start) + ",to_publication_date:" + iso(end) };
+}
+
+function buildArxivQuery(job) {
+  const r = dateRange();
+  if (job.term) {
+    const term = String(job.term).replace(/"/g," ").trim();
+    return '(ti:"' + term + '" OR abs:"' + term + '") AND ' + r.arxivRange;
+  }
+  return "cat:" + job.arxivCat + " AND " + r.arxivRange;
+}
+
+/* 依次尝试：直连 → 公共 CORS 代理，任一成功即返回文本 */
+async function fetchText(url) {
+  const candidates = [
+    url,
+    "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
+    "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url),
+    "https://corsproxy.io/?url=" + encodeURIComponent(url)
+  ];
+  let lastErr = null;
+  for (const u of candidates) {
+    try {
+      const res = await fetch(u, { cache:"no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
+      if (!text || text.indexOf("<feed") === -1) throw new Error("返回内容不是 Atom XML");
+      return text;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("网络请求失败");
+}
+
+function kidText(el, local) {
+  for (const c of el.children) if (c.localName === local) return (c.textContent || "").replace(/\s+/g," ").trim();
+  return "";
+}
+function kidList(el, local) {
+  return Array.from(el.children).filter(c => c.localName === local);
+}
+
+function parseAtom(xmlText, groupKey) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("XML 解析失败");
+  const out = [];
+  for (const entry of Array.from(doc.getElementsByTagName("entry"))) {
+    const rawId = kidText(entry, "id");
+    if (!rawId || rawId.indexOf("/api/errors") !== -1) continue;
+    const m = rawId.match(/\/abs\/(.+)$/);
+    let aid = m ? m[1] : rawId;
+    aid = aid.replace(/v\d+$/,"");
+
+    const title = kidText(entry, "title");
+    if (!title) continue;
+
+    const published = kidText(entry, "published");
+    const authors = kidList(entry, "author").map(a => kidText(a,"name")).filter(Boolean).join(", ");
+    const cats = kidList(entry, "category").map(c => c.getAttribute("term")).filter(Boolean);
+    let primary = "";
+    for (const c of entry.children) if (c.localName === "primary_category") primary = c.getAttribute("term") || "";
+    if (!primary && cats.length) primary = cats[0];
+
+    let pdf = "https://arxiv.org/pdf/" + aid;
+    for (const l of kidList(entry, "link")) {
+      const title2 = l.getAttribute("title") || "";
+      if (title2.toLowerCase() === "pdf") pdf = l.getAttribute("href") || pdf;
+    }
+
+    out.push({
+      id: aid,
+      title: title,
+      date: published.slice(0,10),
+      cat: primary,
+      groups: [groupKey],
+      authors: authors,
+      abstract: kidText(entry, "summary"),
+      hasAbstract: kidText(entry, "summary").length > 40,
+      abs: "https://arxiv.org/abs/" + aid,
+      pdfUrl: pdf,
+      source: "live"
+    });
+  }
+  return out;
+}
+
+/* ---------- OpenAlex：官方支持浏览器跨域，不需要任何代理 / Key ---------- */
+function rebuildAbstract(inv) {
+  if (!inv) return "";
+  const words = [];
+  Object.keys(inv).forEach(w => {
+    (inv[w] || []).forEach(pos => { words[pos] = w; });
+  });
+  return words.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+}
+
+function normaliseOpenAlex(w, groupKey) {
+  const id = String(w.id || "").split("/").pop();
+  const loc = w.primary_location || {};
+  const oa = w.best_oa_location || {};
+  const doi = w.doi ? String(w.doi).replace(/^https?:\/\/doi\.org\//, "") : "";
+  const abstract = rebuildAbstract(w.abstract_inverted_index);
+  return {
+    id: id,
+    title: (w.display_name || "").trim(),
+    date: w.publication_date || "",
+    cat: (loc.source && loc.source.display_name) || "OpenAlex",
+    groups: [groupKey],
+    authors: (w.authorships || [])
+      .map(a => (a.author && a.author.display_name) || "")
+      .filter(Boolean).slice(0, 6).join(", "),
+    abstract: abstract,
+    hasAbstract: abstract.length > 40,
+    abs: loc.landing_page_url || (doi ? "https://doi.org/" + doi : "https://openalex.org/" + id),
+    pdfUrl: oa.pdf_url || loc.pdf_url || "",
+    source: "live",
+    src: "openalex"
+  };
+}
+
+async function fetchOpenAlex(job) {
+  const raw = job.term || job.oa;
+  if (!raw) throw new Error("没有检索词");
+  // filter 语法里逗号/冒号是分隔符，检索词里必须清掉
+  const q = String(raw).replace(/[,:]/g, " ").replace(/\s{2,}/g, " ").trim();
+  if (!q) throw new Error("检索词为空");
+
+  const r = dateRange();
+  const filters = [
+    "title_and_abstract.search:" + q,   // 只搜标题+摘要，不搜参考文献，避免「瞎推」
+    "has_abstract:true",
+    r.oaRange
+  ].join(",");
+
+  const params = new URLSearchParams({
+    filter: filters,
+    sort: state.sortBy === "date" ? "publication_date:desc" : "relevance_score:desc",
+    "per-page": String(Math.min(50, Math.max(5, state.maxPer))),
+    page: String(Math.max(1, state.page || 1))
+  });
+
+  const res = await fetch(OPENALEX + "?" + params.toString(), { cache: "no-store" });
+  if (!res.ok) {
+    let t = "";
+    try { t = await res.text(); } catch (e) {}
+    throw new Error("HTTP " + res.status + (t ? " " + t.slice(0, 120) : ""));
+  }
+  const data = await res.json();
+  return (data.results || [])
+    .map(w => normaliseOpenAlex(w, job.key))
+    .filter(p => p.title && p.hasAbstract);
+}
+
+async function fetchArxiv(job) {
+  const q = buildArxivQuery(job);
+  const perPage = Math.max(5, state.maxPer);
+  const start = ((Math.max(1, state.page || 1)) - 1) * perPage;
+  const url = ARXIV + "?" + new URLSearchParams({
+    search_query: q, start: String(start), max_results: String(perPage),
+    sortBy: state.sortBy === "date" ? "submittedDate" : "relevance",
+    sortOrder:"descending"
+  }).toString();
+  const xml = await fetchText(url);
+  return parseAtom(xml, job.key);   // 可能为空，交给上层统计
+}
+
+/* 数据源优先级：OpenAlex（稳） → arXiv（直连或代理）；两边都空则返回空数组 */
+async function fetchJob(job) {
+  const errs = [];
+  let anySuccess = false;
+
+  try {
+    const a = await fetchOpenAlex(job);
+    anySuccess = true;
+    if (a.length) return a;
+  } catch (e) {
+    errs.push("OpenAlex → " + (e && e.message ? e.message : e));
+  }
+
+  try {
+    const b = await fetchArxiv(job);
+    anySuccess = true;
+    if (b.length) return b;
+  } catch (e) {
+    errs.push("arXiv → " + (e && e.message ? e.message : e));
+  }
+
+  if (anySuccess) return [];       // 通了但确实没有论文
+  throw new Error(errs.join("　｜　"));
+}
+
+/* ============================================================
+   6. 本地规则抽取（无大模型时的降级方案）
+   ============================================================ */
+const KNOWN_TERMS = [
+  "ImageNet","CIFAR-10","CIFAR-100","COCO","GLUE","SQuAD","SuperGLUE","MNIST","Cityscapes",
+  "LongBench","MMLU","GSM8K","HumanEval","WikiText","The Pile","C4","LAION","WebVid",
+  "METR-LA","PEMS-BAY","ETTh1","ETTm1","Weather","Electricity","Traffic",
+  "QM9","ZINC","OGB","OGBN","Pubmed","Cora","Citeseer",
+  "CASP14","CASP15","PDB","ERA5","Darcy flow","Navier-Stokes","Severson",
+  "LLaMA","LLaMA-2","LLaMA-3","GPT-4","BERT","RoBERTa","T5","CLIP","ViT","ResNet","Swin",
+  "FNO","DeepONet","PINN","GraphSAGE","GAT","GCN","Diffusion","Transformer","Mamba"
+];
+
+function extractLocal(p) {
+  const abs = p.abstract || "";
+  const sent = (abs.match(/^[^.!?]*[.!?]/) || [abs])[0].replace(/\s+/g," ").trim();
+  let contribution = sent;
+  if (contribution.length > 150) contribution = contribution.slice(0,147) + "…";
+
+  const low = abs.toLowerCase();
+  const datasets = [];
+  for (const term of KNOWN_TERMS) {
+    if (datasets.length >= 4) break;
+    if (low.indexOf(term.toLowerCase()) !== -1) datasets.push(term);
+  }
+  if (!datasets.length) {
+    const dm = abs.match(/\b(?:on|using|over)\s+([A-Z][A-Za-z0-9\-]{2,20})\b/);
+    if (dm) datasets.push(dm[1]);
+  }
+
+  const lm = abs.match(/https?:\/\/(?:www\.)?(?:github\.com|gitlab\.com|huggingface\.co|bitbucket\.org)\/[^\s)\]},;]+/i);
+  const url = lm ? lm[0].replace(/[.,;:)]+$/,"") : "";
+
+  let open = "unknown";
+  if (url) open = "yes";
+  else if (/(will not be (publicly )?released|not (publicly )?(available|released)|proprietary|closed[- ]source)/i.test(abs)) open = "no";
+
+  return { contribution, datasets, open, url, evidence: sent };
+}
+
+/* ============================================================
+   6.5 大模型抽取（浏览器直连 OpenAI 兼容接口）
+   ============================================================ */
+const LLM_STORE = "nn_llm_cfg_v1";
+let llmCfg = { key:"", base:"https://api.deepseek.com", model:"deepseek-chat" };
+
+function loadLlmCfg() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LLM_STORE) || "{}");
+    if (d.key) llmCfg.key = d.key;
+    if (d.base) llmCfg.base = d.base;
+    if (d.model) llmCfg.model = d.model;
+  } catch (e) {}
+}
+function saveLlmCfg() {
+  try { localStorage.setItem(LLM_STORE, JSON.stringify(llmCfg)); } catch (e) {}
+}
+function llmReady() { return !!(llmCfg.key && llmCfg.key.length >= 8); }
+
+/* 连接状态提示（随语言切换重新渲染） */
+let llmStatusKind = "";
+let llmStatusExtra = "";
+function setLlmStatus(kind, extra) {
+  llmStatusKind = kind || "";
+  llmStatusExtra = extra || "";
+  const el = $("llmStatus");
+  if (!el) return;
+  const icon = { ok:"✅ ", fail:"❌ ", testing:"⏳ ", nokey:"⚠️ " };
+  let msg = "";
+  if (kind === "ok") msg = t("llmOk");
+  else if (kind === "fail") msg = t("llmFail") + (extra ? "：" + extra : "");
+  else if (kind === "testing") msg = t("llmTesting");
+  else if (kind === "nokey") msg = t("llmNoKey");
+  el.textContent = msg ? (icon[kind] || "") + msg : "";
+}
+
+const LLM_SYSTEM = [
+"你是严谨的科研文献抽取助手，服务于「神经网络文献追踪看板」。",
+"读一篇论文的英文标题与摘要，输出一个 JSON 对象，不要解释，不要 Markdown 代码块。",
+"",
+"硬性规则：",
+"1. 只输出一个 json 对象，字段固定为：title_zh、contribution_zh、datasets_methods、code_open_source、code_url、evidence",
+"2. title_zh：把英文标题译成通顺中文，模型名/数据集名等专有名词保留英文。",
+"3. contribution_zh：一句中文概括「解决了什么问题 + 关键做法」，不超过 60 个汉字。",
+"4. datasets_methods：从摘要抽取 2~5 个具体的数据集/模型/方法名，不要写「深度学习」这类泛词。",
+"5. code_open_source：只能是 yes / no / unknown。",
+"   摘要出现 github/gitlab/huggingface 等代码链接 → yes；明确声明不开源 → no；完全没提代码 → unknown（不要猜 yes）。",
+"6. code_url：仅当摘要中出现真实链接时填写，否则 null。",
+"7. evidence：逐字摘录摘要中支撑结论的一句英文原文。",
+"8. 所有内容必须来自给定材料，禁止用先验知识补充摘要里没写的信息。"
+].join("\n");
+
+function llmMessages(p) {
+  return [
+    { role:"system", content: LLM_SYSTEM },
+    { role:"user", content:
+      "【标题】" + (p.title || "") + "\n" +
+      "【类目】" + (p.cat || "") + "\n" +
+      "【摘要】\n" + String(p.abstract || "").slice(0, 2400) + "\n\n" +
+      "只输出那个 JSON 对象。" }
+  ];
+}
+
+async function llmCall(messages, maxTokens, attempt) {
+  attempt = attempt || 1;
+  const url = llmCfg.base.replace(/\/+$/, "") + "/chat/completions";
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + llmCfg.key
+  };
+  const base = {
+    model: llmCfg.model,
+    messages: messages,
+    temperature: 0,
+    max_tokens: maxTokens || 450
+  };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const send = payload => {
+    // 每次请求单独计时：网络卡住时 25s 主动中断，不让页面无限等待
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    return fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    }).finally(() => clearTimeout(timer));
+  };
+
+  let res;
+  try {
+    res = await send(Object.assign({}, base, { response_format: { type: "json_object" } }));
+  } catch (netErr) {
+    // 网络层错误（断网、超时）→ 退避重试一次
+    if (attempt < 2) { await sleep(800); return llmCall(messages, maxTokens, attempt + 1); }
+    throw netErr;
+  }
+
+  if (!res.ok) {
+    let txt = "";
+    try { txt = await res.text(); } catch (e) {}
+
+    // 400 且与 json_object / response_format 有关 → 去掉该参数重试
+    if (res.status === 400 && (txt.indexOf("json_object") >= 0 || txt.indexOf("response_format") >= 0)) {
+      const res2 = await send(base);
+      if (res2.ok) {
+        const d2 = await res2.json();
+        const c2 = d2 && d2.choices && d2.choices[0] && d2.choices[0].message ? d2.choices[0].message.content : "";
+        if (c2) return c2;
+      }
+      let t2 = "";
+      try { t2 = await res2.text(); } catch (e) {}
+      throw new Error("HTTP " + res2.status + (t2 ? " " + t2.slice(0, 140) : ""));
+    }
+
+    // 限流 / 服务端错误 → 退避重试（最多 3 次）
+    if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+      await sleep(700 * attempt);
+      return llmCall(messages, maxTokens, attempt + 1);
+    }
+
+    throw new Error("HTTP " + res.status + (txt ? " " + txt.slice(0, 140) : ""));
+  }
+
+  const data = await res.json();
+  const content = data && data.choices && data.choices[0] && data.choices[0].message
+    ? data.choices[0].message.content : "";
+  if (!content) throw new Error("模型返回空内容");
+  return content;
+}
+
+/* 容错解析：剥代码块 → 花括号配对（跳过字符串内的括号）→ 去掉尾逗号 */
+function parseJsonLoose(text) {
+  if (!text) throw new Error("空输出");
+  const s = String(text).replace(/```json/gi, "").replace(/```/g, "").trim();
+  const start = s.indexOf("{");
+  if (start < 0) throw new Error("输出里没有 JSON");
+  let depth = 0, inStr = false, esc2 = false, end = -1;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc2) esc2 = false;
+      else if (ch === "\\") esc2 = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (end < 0) throw new Error("花括号不配对");
+  const body = s.slice(start, end + 1);
+  try { return JSON.parse(body); }
+  catch (e) {
+    const fixed = body.replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(fixed);
+  }
+}
+
+function normaliseLlmJson(j) {
+  const raw = String(j.code_open_source == null ? "" : j.code_open_source).toLowerCase();
+  let open = "unknown";
+  if (raw.indexOf("yes") >= 0 || raw.indexOf("是") >= 0) open = "yes";
+  else if (raw.indexOf("no") >= 0 || raw.indexOf("否") >= 0) open = "no";
+
+  let url = "";
+  const m = String(j.code_url || "").match(/https?:\/\/[^\s"'<>]+/);
+  if (m) url = m[0].replace(/[.,;)\]}]+$/, "");
+  if (open === "yes" && !url) open = "unknown";   // 说开源却拿不出链接 → 降级
+
+  const ds = Array.isArray(j.datasets_methods)
+    ? j.datasets_methods.filter(x => typeof x === "string" && x.trim()).slice(0, 5)
+    : [];
+
+  return {
+    titleZh: String(j.title_zh || "").trim(),
+    contribZh: String(j.contribution_zh || j.one_line_contribution || "").trim(),
+    datasets: ds,
+    open: open,
+    url: url,
+    evidence: String(j.evidence || "").trim()
+  };
+}
+
+async function llmExtract(p) {
+  const raw = await llmCall(llmMessages(p), 450);
+  let obj;
+  try {
+    obj = parseJsonLoose(raw);
+  } catch (firstErr) {
+    // JSON 解析失败 → 把非法输出回灌，要求重发一次
+    const raw2 = await llmCall(llmMessages(p).concat([
+      { role: "assistant", content: String(raw).slice(0, 1200) },
+      { role: "user", content: "上一条不是合法 json。请只输出一个 json 对象，字段同上，不要任何解释。" }
+    ]), 450);
+    obj = parseJsonLoose(raw2);
+  }
+  return normaliseLlmJson(obj);
+}
+
+/* 把模型结果写回论文对象 */
+function applyLlmResult(p, j) {
+  if (j.titleZh) p.titleZh = j.titleZh;
+  if (j.contribZh) p.contribZh = j.contribZh;
+  if (j.datasets && j.datasets.length) p.datasets = j.datasets;
+  if (j.open && j.open !== "unknown") p.open = j.open;
+  if (j.url) p.url = j.url;
+  if (j.evidence) p.evidence = j.evidence;
+  p.status = "llm";
+  zhCache[p.id] = { t: p.titleZh || "", c: p.contribZh || "" };
+  saveZhCache();
+}
+
+/* 并发池：同时跑 3 个请求，边跑边刷新列表 */
+async function extractLlmPool(papers, concurrency) {
+  const queue = papers.filter(p => llmReady() && p.status !== "llm");
+  if (!queue.length) return null;
+
+  const total = queue.length;
+  let done = 0;
+  let firstError = null;
+  let lastPaint = 0;
+
+  const worker = async () => {
+    while (queue.length) {
+      const p = queue.shift();
+      try {
+        const j = await llmExtract(p);
+        applyLlmResult(p, j);
+      } catch (e) {
+        if (!firstError) firstError = (e && e.message) ? e.message : String(e);
+      }
+      done++;
+      $("fetchHelp").textContent = t("llmExtracting", { n: done, total: total });
+      const now = Date.now();
+      if (now - lastPaint > 600) { lastPaint = now; render(); }
+    }
+  };
+
+  const workers = [];
+  for (let i = 0; i < Math.min(concurrency || 3, total); i++) workers.push(worker());
+  await Promise.all(workers);
+  return firstError;
+}
+
+async function llmPing() {
+  // 注意：使用 response_format=json_object 时，DeepSeek 要求提示词里出现 "json" 字样
+  await llmCall([{ role: "user", content: '请只输出一个 json 对象：{"ok":true}' }], 30);
+  return true;
+}
+
+/* ============================================================
+   7. 抓取主流程
+   ============================================================ */
+async function runFetch() {
+  if (state.loading) return;
+
+  const jobs = [];
+  const pInfo = PARADIGM[state.paradigm] || PARADIGM.predictive;
+  const pPhrase = pInfo.phrase;
+  const pName = state.paradigm === "any" ? "" : paradigmName();
+  const hasTopics = state.topics.length > 0;
+  const mixDirs = !!($("mixDirs") && $("mixDirs").checked);
+
+  // 主题词是主条件：先按主题词检索，模型类型只作为附加限定
+  for (const tp of state.topics) {
+    const eng = String(tp.eng || "").trim();
+    let term = eng;
+    if (pPhrase) {
+      const first = pPhrase.split(" ")[0];
+      if (eng.toLowerCase().indexOf(first) === -1) term = (eng + " " + pPhrase).trim();
+    }
+    jobs.push({
+      key:"自定义｜"+tp.label,
+      name: pName ? tp.label + " · " + pName : tp.label,
+      arxivCat:"",
+      oa: term,
+      term: term,
+      baseTerm: eng            // 放宽时退回只用主题词
+    });
+  }
+
+  // 神经网络类型属于「其次」：没有主题词时才作为主检索，或有主题词且手动勾选「同时检索」
+  const useDirs = (!hasTopics || mixDirs) && state.paradigm === "predictive";
+  if (useDirs) {
+    for (const key of state.selected) {
+      const c = CAT_MAP[key];
+      if (!c || !c[3]) continue;
+      jobs.push({
+        key:key,
+        name: catName(key) + " · " + paradigmName(),
+        arxivCat:c[3],
+        oa:(c[4] + " " + pPhrase).trim(),
+        term:""
+      });
+    }
+  }
+
+  if (!jobs.length) {
+    toast("⚠️ " + (state.paradigm === "predictive" ? t("needTarget") : t("needTopicFirst")));
+    return;
+  }
+
+  state.loading = true;
+  const btn = $("fetchBtn");
+  btn.disabled = true;
+  $("fetchIcon").textContent = "⏳";
+  renderSkeleton();
+
+  try {
+  const collected = [];
+  const errors = [];
+  const jobStats = [];        // 每个检索任务实际抓回多少篇，直接显示给用户
+  let okCount = 0;
+
+  // ---------- 阶段一：抓取 + 本地规则，先把列表铺出来 ----------
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    $("fetchHelp").textContent = t("loading", { name: job.name, i: i+1, n: jobs.length });
+    try {
+      let papers = await fetchJob(job);
+      let relaxed = false;
+
+      // 主题词优先：加了模型类型限定却一条都没搜到，就退回「只用主题词」再试一次
+      if (!papers.length && job.baseTerm && job.term !== job.baseTerm) {
+        papers = await fetchJob(Object.assign({}, job, { oa: job.baseTerm, term: job.baseTerm }));
+        relaxed = papers.length > 0;
+      }
+
+      okCount++;
+      jobStats.push({ name: job.name, count: papers.length, note: relaxed ? "（已放宽为仅主题词）" : "" });
+
+      for (const p of papers) {
+        const ex = extractLocal(p);
+        p.contribution = ex.contribution;
+        p.datasets = ex.datasets;
+        p.open = ex.open;
+        p.url = ex.url;
+        p.evidence = ex.evidence;
+        p.status = "rule";
+        collected.push(p);
+      }
+    } catch (e) {
+      const msg = (e && e.message) ? e.message : String(e);
+      errors.push(job.name + "：" + msg);
+      jobStats.push({ name: job.name, count: 0, error: msg });
+    }
+    await new Promise(r => setTimeout(r, 300));  // 轻度节流
+  }
+
+  const jobSummary = jobStats
+    .map(s => s.name + " " + s.count + " 篇" + (s.note || "") + (s.error ? "（失败）" : ""))
+    .join("　·　");
+
+  if (!okCount || !collected.length) {
+    state.loading = false;
+    btn.disabled = false;
+    $("fetchIcon").textContent = "🚀";
+    $("fetchHelp").textContent = t("fetchHelp");
+    state.source = "sample";
+    if (!state.papers.length) state.papers = SAMPLES.slice();
+    showBanner("warn", t("fallbackSample")
+      + (jobSummary ? "<br><small>" + esc(jobSummary) + "</small>" : "")
+      + (errors.length ? "<br><small>" + esc(errors[0]) + "</small>" : ""));
+    toast("❌ " + t("failed", { msg: errors[0] || "no data" }));
+    render(); save();
+    return;
+  }
+
+  // 合并去重（新抓的覆盖旧的，同 id 保留新数据）
+  const map = new Map();
+  for (const p of state.papers) if (p.id && p.source === "live") map.set(p.id, p);
+  let added = 0;
+  for (const p of collected) { if (!map.has(p.id)) added++; map.set(p.id, p); }
+
+  state.papers = Array.from(map.values());
+  state.source = "live";
+  state.lastFetch = new Date().toLocaleString();
+  // 本次抓到的这批单独标记，界面只展示这一批（避免新论文被淹没在末尾）
+  state.batch = collected.map(p => p.id);
+  applyZhCache();
+  buildControls();
+  render();   // 先把规则结果展示出来，不用等大模型
+
+  // ---------- 阶段二：大模型并发抽取，边跑边刷新 ----------
+  let firstLlmError = null;
+  if (llmReady()) {
+    firstLlmError = await extractLlmPool(collected, 3);
+  }
+
+  state.loading = false;
+  btn.disabled = false;
+  $("fetchIcon").textContent = "🚀";
+  $("fetchHelp").textContent = t("fetchHelp");
+
+  showBanner("info", t("liveBanner", { n: state.papers.length, years: state.years.toFixed(1) })
+    + "<br><small>" + esc(jobSummary) + "</small>");
+  if (firstLlmError) {
+    showBanner("warn", t("llmFailedBanner", { msg: esc(firstLlmError) }));
+  } else if (added === 0) {
+    showBanner("warn", t("noNewBanner", { page: state.page }));
+  }
+  toast("✅ " + t("done", { n: added }));
+  render(); save();
+
+  } catch (err) {
+    // 任何未预料的异常都不能把页面卡死在「加载中」
+    showBanner("warn", t("failed", { msg: esc((err && err.message) || String(err)) }));
+    render();
+  } finally {
+    state.loading = false;
+    btn.disabled = false;
+    $("fetchIcon").textContent = "🚀";
+    $("fetchHelp").textContent = t("fetchHelp");
+  }
+}
+
+/* ============================================================
+   8. 存储
+   ============================================================ */
+function save() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      papers: state.papers.slice(0, 400),
+      source: state.source, lastFetch: state.lastFetch,
+      topics: state.topics, years: state.years,
+      paradigm: state.paradigm, autoZh: state.autoZh, selected: state.selected,
+      sortBy: state.sortBy,
+      lang: state.lang, theme: state.theme
+    }));
+  } catch (e) { /* 配额超出时静默忽略 */ }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (d.papers && d.papers.length) {
+      state.papers = d.papers;
+      state.source = d.source || "live";
+      state.lastFetch = d.lastFetch || "";
+      state.topics = d.topics || [];
+      state.years = d.years || 0.5;
+      if (d.paradigm) state.paradigm = d.paradigm;
+      if (d.sortBy) state.sortBy = d.sortBy;
+      if (typeof d.autoZh === "boolean") state.autoZh = d.autoZh;
+      if (Array.isArray(d.selected) && d.selected.length) state.selected = d.selected;
+      if (d.lang) state.lang = d.lang;
+      if (d.theme) state.theme = d.theme;
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+/* ============================================================
+   9. 渲染
+   ============================================================ */
+const BADGE = { yes:"badgeYes", no:"badgeNo", unknown:"badgeUnknown" };
+
+function showBanner(kind, html) {
+  const b = $("banner");
+  b.className = "banner show" + (kind === "warn" ? " warn" : "");
+  $("bannerText").innerHTML = html;
+}
+
+function renderSkeleton() {
+  let html = "";
+  for (let i = 0; i < 4; i++) {
+    html += '<div class="sk"><div class="l w1"></div><div class="l w2"></div><div class="l w3"></div></div>';
+  }
+  $("list").innerHTML = html;
+  $("resultTitle").textContent = t("loadingAll");
+}
+
+function visiblePapers() {
+  const cutoff = new Date(Date.now() - yearsToDays(state.years) * 86400000);
+  const q = (state.filterText || "").toLowerCase().trim();
+  const batch = state.batch ? new Set(state.batch) : null;
+  const rows = state.papers.filter(p => {
+    if (batch && !batch.has(p.id)) return false;          // 只显示本批次
+    if (state.os !== "all" && (p.open || "unknown") !== state.os) return false;
+    if (state.cat !== "all" && !(p.groups || []).includes(state.cat)) return false;
+    // 只有实时数据才受时间窗口约束；示例数据固定展示，避免日期过期后一片空白
+    if (p.source === "live" && p.date) {
+      const d = new Date(p.date + "T00:00:00Z");
+      if (!isNaN(d) && d < cutoff) return false;
+    }
+    if (q) {
+      const hay = [p.title, p.titleZh, p.abstract, p.contribution, p.contribZh,
+                   (p.datasets || []).join(" "), p.cat].join(" ").toLowerCase();
+      if (hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  // 相关度模式下保持接口返回顺序（已被后端按 relevance 排好），不要重排
+  if (state.sortBy === "date") {
+    rows.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  }
+  return rows;
+}
+
+function render() {
+  const rows = visiblePapers();
+  const shown = rows.slice(0, state.limit);
+  const total = state.papers.length;
+  const openCount = state.papers.filter(p => p.open === "yes").length;
+
+  $("statTotal").textContent = total;
+  $("statOpen").textContent = openCount;
+  $("statShown").textContent = rows.length;
+  $("statTime").textContent = state.lastFetch ? state.lastFetch.replace(/:\d\d$/, "") : "—";
+
+  $("resultTitle").textContent = t("results", { n: rows.length });
+  $("resultMeta").textContent = t("resultMeta", {
+    years: state.years.toFixed(1),
+    days: yearsToDays(state.years),
+    src: state.source === "live" ? t("srcLive") : t("srcSample")
+  });
+
+  // 「显示全部」按钮：只在按批次展示时出现
+  const allBtn = $("allBtn");
+  if (allBtn) {
+    if (state.batch) {
+      allBtn.style.display = "";
+      allBtn.textContent = t("showAll", { n: state.papers.length, page: state.page });
+    } else {
+      allBtn.style.display = "none";
+    }
+  }
+  $("resultMeta").textContent += state.batch ? "　·　" + t("batchTag", { page: state.page }) : "";
+
+  if (!shown.length) {
+    const isFiltered = total > 0;
+    $("list").innerHTML =
+      '<div class="empty"><div class="big">🔍</div>' +
+      "<p>" + (isFiltered ? esc(t("emptyFilter")) : "<b>" + esc(t("emptyTitle")) + "</b><br>" + esc(t("emptyDesc"))) + "</p>" +
+      (isFiltered ? '<button class="btn btn-ghost btn-sm" id="resetBtn">' + esc(t("resetFilter")) + "</button>" : "") +
+      "</div>";
+    const rb = $("resetBtn");
+    if (rb) rb.addEventListener("click", resetFilters);
+    return;
+  }
+
+  $("list").innerHTML = shown.map((p, i) => {
+    const tags = (p.datasets || []).map(d => '<span class="tag">' + esc(d) + "</span>").join("");
+    const groups = (p.groups || []).map(g => catName(g)).filter(Boolean).join(" · ");
+    const openKey = p.open || "unknown";
+
+    const abs = state.showAbs && p.abstract
+      ? '<div class="abs">' + esc(p.abstract) + "</div>" : "";
+
+    const links = [];
+    const absUrl = p.abs || (p.src === "openalex"
+      ? "https://openalex.org/" + p.id
+      : "https://arxiv.org/abs/" + p.id);
+    links.push('<a class="link-btn" href="' + esc(absUrl) + '" target="_blank" rel="noopener">📄 ' + esc(t("paper")) + "</a>");
+    if (p.pdfUrl) links.push('<a class="link-btn" href="' + esc(p.pdfUrl) + '" target="_blank" rel="noopener">⬇️ ' + esc(t("pdf")) + "</a>");
+    if (p.url) links.push('<a class="link-btn" href="' + esc(p.url) + '" target="_blank" rel="noopener">💻 ' + esc(t("code")) + "</a>");
+
+    return '<article class="item" data-id="' + esc(p.id) + '" style="animation-delay:' + Math.min(i * 18, 220) + 'ms">' +
+      '<div class="row1">' +
+        '<span class="num">' + String(i + 1).padStart(2, "0") + "</span>" +
+        '<h3 class="title"><a href="' + esc(p.abs || "#") + '" target="_blank" rel="noopener">' + esc(p.title) + "</a></h3>" +
+        '<span class="pill ' + openKey + '">' + esc(t(BADGE[openKey] || "badgeUnknown")) + "</span>" +
+      "</div>" +
+      '<div class="title-zh">' + esc(state.autoZh ? (p.titleZh || "") : "") + "</div>" +
+      '<div class="meta-line">' +
+        "<span>" + esc(p.date || "") + "</span>" +
+        (p.cat ? '<span class="sep">·</span><span>' + esc(p.cat) + "</span>" : "") +
+        (groups ? '<span class="sep">·</span><span>' + esc(groups) + "</span>" : "") +
+        (p.status === "llm" ? '<span class="sep">·</span><span>🤖 ' + esc(t("llmBadge")) + "</span>" : "") +
+      "</div>" +
+      '<div class="lines">' +
+        (p.contribution
+          ? '<div class="line"><span class="k">' + esc(t("contribution")) + "</span>" +
+            '<span class="contrib">' + esc((state.autoZh && p.contribZh) ? p.contribZh : p.contribution) + "</span></div>"
+          : '<div class="line"><span class="k">' + esc(t("contribution")) + "</span><i>" +
+            esc(p.hasAbstract === false ? t("noAbstract") : t("notExtracted")) + "</i></div>") +
+        '<div class="line"><span class="k">' + esc(t("datasets")) + "</span>" +
+          (tags ? '<span class="tags">' + tags + "</span>"
+                : "<i>" + esc(p.hasAbstract === false ? t("noAbstract") : t("notExtracted")) + "</i>") + "</div>" +
+      "</div>" +
+      abs +
+      (p.authors ? '<div class="authors">👥 ' + esc(p.authors) + "</div>" : "") +
+      '<div class="links">' + links.join("") + "</div>" +
+    "</article>";
+  }).join("");
+
+  if (state.autoZh) setTimeout(translateLoop, 80);
+}
+
+/* ============================================================
+   10. 交互
+   ============================================================ */
+function resetFilters() {
+  state.os = "all"; state.cat = "all";
+  $("osSel").value = "all"; $("catSel").value = "all";
+  render();
+}
+
+function buildControls() {
+  // 神经网络类型勾选
+  const box = $("dirChecks");
+  box.innerHTML = "";
+  CATS.filter(c => c[0] !== "custom").forEach(c => {
+    const label = document.createElement("label");
+    label.innerHTML = '<input type="checkbox" value="' + c[0] + '"' +
+      (state.selected.includes(c[0]) ? " checked" : "") + "><span>" + esc(catName(c[0])) + "</span>";
+    box.appendChild(label);
+  });
+
+  // 方向筛选下拉
+  const sel = $("catSel");
+  const keep = sel.value || state.cat;
+  sel.innerHTML = '<option value="all">' + esc(state.lang === "zh" ? "全部方向" : "All fields") + "</option>";
+  const used = [...new Set(state.papers.flatMap(p => p.groups || []))];
+  used.forEach(g => {
+    const o = document.createElement("option");
+    o.value = g; o.textContent = catName(g);
+    sel.appendChild(o);
+  });
+  sel.value = used.includes(keep) ? keep : "all";
+  state.cat = sel.value;
+
+  // 主题 chips
+  const chips = $("chips");
+  chips.innerHTML = state.topics.map((tp, i) =>
+    '<div class="chip"><span class="lbl">' + esc(tp.label) + '</span>' +
+    '<span class="arrow">→</span><span class="eng">' + esc(tp.eng) + "</span>" +
+    '<button class="rm" data-rm="' + i + '">✕</button></div>'
+  ).join("");
+
+  updateParadigmUI();
+}
+
+/* 范式切换时：高亮按钮 + 只在「预测模型」下显示神经网络类型 */
+function updateParadigmUI() {
+  document.querySelectorAll("#paradigmSeg button").forEach(b =>
+    b.classList.toggle("active", b.getAttribute("data-paradigm") === state.paradigm));
+  const f = $("nnField");
+  if (f) f.style.display = state.paradigm === "predictive" ? "" : "none";
+}
+
+function applyLang(code) {
+  state.lang = code;
+  document.documentElement.lang = code === "zh" ? "zh-CN" : "en";
+  document.querySelectorAll("#langSeg button").forEach(b =>
+    b.classList.toggle("active", b.getAttribute("data-lang") === code));
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => {
+    el.setAttribute("placeholder", t(el.getAttribute("data-i18n-ph")));
+  });
+  $("yearsHelp").textContent = t("yearsHelp");
+  setLlmStatus(llmStatusKind, llmStatusExtra);
+  updateBanner();
+  buildControls();
+  render();
+}
+
+function applyTheme(mode) {
+  state.theme = mode;
+  document.documentElement.setAttribute("data-theme", mode);
+  document.querySelectorAll("#themeSeg button").forEach(b =>
+    b.classList.toggle("active", b.getAttribute("data-theme-mode") === mode));
+}
+
+function updateBanner() {
+  if (state.loading) return;
+  if (state.source === "live") {
+    showBanner("info", t("liveBanner", { n: state.papers.length, years: state.years.toFixed(1) }));
+  } else {
+    showBanner("info", t("sampleBanner"));
+  }
+}
+
+/* ============================================================
+   11. 事件绑定
+   ============================================================ */
+$("langSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-lang]");
+  if (b) { applyLang(b.getAttribute("data-lang")); save(); }
+});
+$("themeSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-theme-mode]");
+  if (b) { applyTheme(b.getAttribute("data-theme-mode")); save(); }
+});
+
+$("dirChecks").addEventListener("change", () => {
+  state.selected = [...document.querySelectorAll("#dirChecks input:checked")].map(i => i.value);
+});
+
+$("topicAdd").addEventListener("click", async () => {
+  const input = $("topicInput");
+  const btn = $("topicAdd");
+  const label = (input.value || "").trim();
+  if (!label) { toast("⚠️ " + t("noTopic")); return; }
+  if (state.topics.some(x => x.label === label)) { toast("⚠️ " + t("topicDup")); return; }
+
+  let eng = label;
+  if (CJK.test(label)) {
+    const old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = t("topicTranslating");
+    let r;
+    try { r = await translateTopic(label); }
+    finally { btn.disabled = false; btn.textContent = old; }
+    if (!r || !r.eng) { toast("❌ " + t("topicFail", { text: label })); return; }
+    eng = r.eng;
+  }
+
+  state.topics.push({ label: label, eng: eng });
+  input.value = "";
+  buildControls(); render(); save();
+  toast("✅ " + t("topicAdded", { label: label, eng: eng }));
+});
+
+$("chips").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-rm]");
+  if (!btn) return;
+  state.topics.splice(Number(btn.getAttribute("data-rm")), 1);
+  buildControls(); render(); save();
+});
+
+$("paradigmSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-paradigm]");
+  if (!b) return;
+  state.paradigm = b.getAttribute("data-paradigm");
+  updateParadigmUI();
+  save();
+});
+
+$("years").addEventListener("input", e => {
+  const v = parseFloat(e.target.value);
+  state.years = isNaN(v) ? 0.5 : Math.min(10, Math.max(0.1, v));
+  render(); save();
+});
+$("maxPer").addEventListener("input", e => {
+  const v = parseInt(e.target.value, 10);
+  state.maxPer = isNaN(v) ? 25 : Math.min(100, Math.max(5, v));
+});
+$("osSel").addEventListener("change", e => { state.os = e.target.value; render(); });
+$("catSel").addEventListener("change", e => { state.cat = e.target.value; render(); });
+$("limit").addEventListener("input", e => { state.limit = parseInt(e.target.value, 10); render(); });
+$("sortSel").addEventListener("change", e => { state.sortBy = e.target.value; save(); });
+$("quickFilter").addEventListener("input", e => { state.filterText = e.target.value; render(); });
+$("showAbs").addEventListener("change", e => { state.showAbs = e.target.checked; render(); });
+$("autoZh").addEventListener("change", e => {
+  state.autoZh = e.target.checked;
+  render();
+  if (state.autoZh) translateLoop();
+});
+$("fetchBtn").addEventListener("click", () => { state.page = 1; runFetch(); });
+$("reloadBtn").addEventListener("click", () => { state.page = 1; runFetch(); });
+// 换一批：翻到下一页，拉不同的论文进来
+$("nextBtn").addEventListener("click", () => {
+  state.page = (state.page || 1) + 1;
+  runFetch();
+});
+// 显示全部：取消批次过滤
+$("allBtn").addEventListener("click", () => {
+  state.batch = null;
+  render();
+});
+
+$("llmClear").addEventListener("click", () => {
+  llmCfg.key = "";
+  try { localStorage.removeItem(LLM_STORE); } catch (e) {}
+  $("llmKey").value = "";
+  setLlmStatus("nokey");
+  toast("🧹 " + t("llmCleared"));
+});
+
+$("llmSave").addEventListener("click", async () => {
+  llmCfg.key = ($("llmKey").value || "").trim();
+  llmCfg.model = ($("llmModel").value || "deepseek-chat").trim();
+  llmCfg.base = (($("llmBase").value || "https://api.deepseek.com").trim()).replace(/\/+$/, "");
+  saveLlmCfg();
+
+  if (!llmReady()) { setLlmStatus("nokey"); return; }
+
+  setLlmStatus("testing");
+  try {
+    await llmPing();
+    setLlmStatus("ok");
+  } catch (e) {
+    setLlmStatus("fail", (e && e.message) ? e.message : String(e));
+  }
+});
+
+$("csvBtn").addEventListener("click", () => {
+  const rows = visiblePapers().slice(0, state.limit);
+  if (!rows.length) { toast("⚠️ " + t("nothing")); return; }
+  const head = ["arxiv_id","title","title_zh","date","category","contribution","contribution_zh","datasets","open_source","code_url"];
+  const body = rows.map(p => [
+    p.id, p.title, p.titleZh || "", p.date, p.cat,
+    p.contribution, p.contribZh || "", (p.datasets||[]).join("、"),
+    p.open, p.url
+  ].map(v => '"' + String(v == null ? "" : v).replace(/"/g,'""') + '"').join(","));
+  const blob = new Blob(["\ufeff" + [head.join(",")].concat(body).join("\n")], { type:"text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "nn_papers_" + state.years + "y.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("✅ " + t("exported", { n: rows.length }));
+});
+
+$("clearBtn").addEventListener("click", () => {
+  state.papers = []; state.source = "sample"; state.lastFetch = "";
+  state.batch = null; state.page = 1;
+  try { localStorage.removeItem(LS_KEY); } catch (e) {}
+  updateBanner(); buildControls(); render();
+  toast("🗑 " + t("cleared"));
+});
+
+/* ============================================================
+   12. 启动
+   ============================================================ */
+(function boot() {
+  const had = load();
+  loadZhCache();
+  loadLlmCfg();
+
+  // 如果本机存在 llm-key.local.js，会自动带上 Key，无需手动输入
+  if (!llmCfg.key && window.__LLM_KEY__) {
+    llmCfg.key = String(window.__LLM_KEY__).trim();
+    saveLlmCfg();
+  }
+
+  applyTheme(state.theme || "system");
+  if (!had) state.papers = SAMPLES.slice();
+  applyZhCache();
+
+  // 把已保存的偏好同步回表单控件
+  $("years").value = state.years;
+  $("maxPer").value = state.maxPer;
+  $("autoZh").checked = state.autoZh;
+  $("sortSel").value = state.sortBy;
+  $("llmKey").value = llmCfg.key;
+  $("llmModel").value = llmCfg.model;
+  $("llmBase").value = llmCfg.base;
+
+  applyLang(state.lang || "zh");
+  setLlmStatus(llmReady() ? "ok" : "");
+  updateBanner();
+  if (!had) save();
+})();
+</script>
+</body>
+</html>
